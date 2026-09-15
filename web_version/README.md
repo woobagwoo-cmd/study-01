@@ -5,11 +5,17 @@ EasyOCR 기반 손글씨 인식 웹 앱. 캔버스에 직접 쓰거나 이미지
 ## 실행 방법
 
 ```bash
-# 가상환경 활성화 (이미 venv 폴더가 있음)
+# 가상환경이 없다면 새로 생성
+python -m venv venv
+
+# 가상환경 활성화
 # Windows (PowerShell)
 venv\Scripts\Activate.ps1
 # Windows (git bash)
 source venv/Scripts/activate
+
+# 의존 패키지 설치
+pip install -r requirements.txt
 
 # 서버 실행
 python app.py
