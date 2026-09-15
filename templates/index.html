@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>손글씨 인식</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f5f4f0;
+    --panel: #ffffff;
+    --ink: #1c1b19;
+    --muted: #6b6a66;
+    --line: #dedcd6;
+    --accent: #2f6f4f;
+    --accent-ink: #ffffff;
+    --danger: #b3492f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    padding: 24px 16px 48px;
+  }
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.4rem;
+    margin: 0 0 4px;
+  }
+  p.sub {
+    color: var(--muted);
+    margin: 0 0 24px;
+    font-size: 0.92rem;
+  }
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: var(--ink);
+  }
+  .tab-btn.active {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  [hidden] { display: none !important; }
+
+  #canvasBox {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  canvas#drawCanvas {
+    width: 100%;
+    max-width: 700px;
+    aspect-ratio: 7 / 3;
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  .controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button {
+    font: inherit;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #f0efec;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button.primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  button.ghost {
+    background: transparent;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--line);
+    border-radius: 12px;
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .drop-zone.drag {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  #previewImg {
+    max-width: 100%;
+    max-height: 320px;
+    display: block;
+    margin: 12px auto 0;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+  }
+
+  .result-box {
+    margin-top: 20px;
+  }
+  .result-box h2 {
+    font-size: 1rem;
+    margin: 0 0 8px;
+  }
+  #resultText {
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+    font-size: 1rem;
+    line-height: 1.6;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: #fbfaf7;
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .lines {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .lines .line-item span.conf {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .status {
+    margin-top: 12px;
+    font-size: 0.88rem;
+    min-height: 1.2em;
+  }
+  .status.error { color: var(--danger); }
+  .status.busy { color: var(--muted); }
+
+  @media (max-width: 480px) {
+    .controls { justify-content: stretch; }
+    .controls button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>손글씨 인식</h1>
+  <p class="sub">한글 · 영문 · 숫자 혼합 손글씨를 인식합니다. 캔버스에 직접 쓰거나 이미지를 업로드하세요.</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabDraw" type="button">✍️ 직접 그리기</button>
+    <button class="tab-btn" id="tabUpload" type="button">🖼️ 파일 업로드</button>
+  </div>
+
+  <div class="panel">
+    <div id="canvasBox">
+      <canvas id="drawCanvas" width="1400" height="600"></canvas>
+      <div class="controls">
+        <button id="clearBtn" type="button">지우기</button>
+        <button id="recognizeCanvasBtn" class="primary" type="button">인식하기</button>
+      </div>
+    </div>
+
+    <div id="uploadBox" hidden>
+      <div class="drop-zone" id="dropZone">
+        <div id="dropLabel">이미지를 끌어다 놓거나 클릭해서 선택하세요</div>
+        <img id="previewImg" hidden />
+      </div>
+      <input type="file" id="fileInput" accept="image/*" hidden />
+      <div class="controls" style="margin-top:14px;">
+        <button id="resetUploadBtn" type="button">초기화</button>
+        <button id="recognizeUploadBtn" class="primary" type="button" disabled>인식하기</button>
+      </div>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <div class="result-box">
+      <h2>인식 결과</h2>
+      <textarea id="resultText" placeholder="인식된 텍스트가 여기 표시됩니다." readonly></textarea>
+      <div class="lines" id="lines"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ---------- 탭 전환 ----------
+  const tabDraw = document.getElementById('tabDraw');
+  const tabUpload = document.getElementById('tabUpload');
+  const canvasBox = document.getElementById('canvasBox');
+  const uploadBox = document.getElementById('uploadBox');
+
+  function showDraw() {
+    tabDraw.classList.add('active');
+    tabUpload.classList.remove('active');
+    canvasBox.hidden = false;
+    uploadBox.hidden = true;
+  }
+  function showUpload() {
+    tabUpload.classList.add('active');
+    tabDraw.classList.remove('active');
+    uploadBox.hidden = false;
+    canvasBox.hidden = true;
+  }
+  tabDraw.addEventListener('click', showDraw);
+  tabUpload.addEventListener('click', showUpload);
+
+  // ---------- 캔버스 그리기 ----------
+  const canvas = document.getElementById('drawCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.lineWidth = 8;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#111111';
+
+  let drawing = false;
+  let last = null;
+
+  function getPos(evt) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const point = evt.touches ? evt.touches[0] : evt;
+    return {
+      x: (point.clientX - rect.left) * scaleX,
+      y: (point.clientY - rect.top) * scaleY,
+    };
+  }
+
+  function start(evt) {
+    evt.preventDefault();
+    drawing = true;
+    last = getPos(evt);
+  }
+  function move(evt) {
+    if (!drawing) return;
+    evt.preventDefault();
+    const pos = getPos(evt);
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    last = pos;
+  }
+  function end(evt) {
+    if (evt) evt.preventDefault();
+    drawing = false;
+    last = null;
+  }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', end, { passive: false });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  });
+
+  // ---------- 파일 업로드 ----------
+  const dropZone = document.getElementById('dropZone');
+  const dropLabel = document.getElementById('dropLabel');
+  const fileInput = document.getElementById('fileInput');
+  const previewImg = document.getElementById('previewImg');
+  const recognizeUploadBtn = document.getElementById('recognizeUploadBtn');
+  let uploadedFile = null;
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setUploadedFile(e.dataTransfer.files[0]);
+    }
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files && fileInput.files[0]) {
+      setUploadedFile(fileInput.files[0]);
+    }
+  });
+
+  function setUploadedFile(file) {
+    uploadedFile = file;
+    const url = URL.createObjectURL(file);
+    previewImg.src = url;
+    previewImg.hidden = false;
+    dropLabel.hidden = true;
+    recognizeUploadBtn.disabled = false;
+  }
+
+  document.getElementById('resetUploadBtn').addEventListener('click', () => {
+    uploadedFile = null;
+    fileInput.value = '';
+    previewImg.hidden = true;
+    dropLabel.hidden = false;
+    recognizeUploadBtn.disabled = true;
+  });
+
+  // ---------- 인식 요청 ----------
+  const statusEl = document.getElementById('status');
+  const resultText = document.getElementById('resultText');
+  const linesEl = document.getElementById('lines');
+
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg || '';
+    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function renderResult(data) {
+    resultText.value = data.text || '(인식된 텍스트 없음)';
+    linesEl.innerHTML = '';
+    (data.lines || []).forEach((item) => {
+      const div = document.createElement('div');
+      div.className = 'line-item';
+      const pct = Math.round(item.confidence * 100);
+      div.innerHTML = `· ${escapeHtml(item.text)} <span class="conf">(${pct}%)</span>`;
+      linesEl.appendChild(div);
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  async function recognizeFromCanvas() {
+    setStatus('인식 중입니다... (처음 실행 시 다소 느릴 수 있어요)', 'busy');
+    setButtonsDisabled(true);
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      const res = await fetch('/recognize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '인식 실패');
+      renderResult(data);
+      setStatus('완료되었습니다.');
+    } catch (err) {
+      setStatus(err.message, 'error');
+    } finally {
+      setButtonsDisabled(false);
+    }
+  }
+
+  async function recognizeFromUpload() {
+    if (!uploadedFile) return;
+    setStatus('인식 중입니다... (처음 실행 시 다소 느릴 수 있어요)', 'busy');
+    setButtonsDisabled(true);
+    try {
+      const form = new FormData();
+      form.append('image', uploadedFile);
+      const res = await fetch('/recognize', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '인식 실패');
+      renderResult(data);
+      setStatus('완료되었습니다.');
+    } catch (err) {
+      setStatus(err.message, 'error');
+    } finally {
+      setButtonsDisabled(false);
+    }
+  }
+
+  function setButtonsDisabled(disabled) {
+    document.getElementById('recognizeCanvasBtn').disabled = disabled;
+    recognizeUploadBtn.disabled = disabled || !uploadedFile;
+  }
+
+  document.getElementById('recognizeCanvasBtn').addEventListener('click', recognizeFromCanvas);
+  recognizeUploadBtn.addEventListener('click', recognizeFromUpload);
+})();
+</script>
+</body>
+</html>
